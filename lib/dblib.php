@@ -27,6 +27,8 @@ function db_connect($dbhost, $dbname, $dbuser, $dbpass) {
 			}
 			return false;
 		}
+		
+		$dbh->query("SET sql_mode = ''");
 	}
 	else {
 		if (! $dbh = mysql_connect ( $dbhost, $dbuser, $dbpass )) {
