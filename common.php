@@ -15,6 +15,7 @@ require_once ("lib/Email.php");
 require_once ("lib/FeeSchedule.php");
 require_once ("lib/Lang.php");
 require_once ("lib/Wallets.php");
+require_once ("lib/CryptoCap.php");
 
 /* Connect to the database */
 db_connect($CFG->dbhost,$CFG->dbname,$CFG->dbuser,$CFG->dbpass);

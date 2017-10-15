@@ -4,3 +4,4 @@ DIR=$(cd "$( dirname "$0" )" && pwd)
 
 ${DIR}/receive_bitcoin.php
 ${DIR}/send_bitcoin.php
+${DIR}/process_fiat.php
