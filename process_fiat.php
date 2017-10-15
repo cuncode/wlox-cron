@@ -133,3 +133,5 @@ if ($result) foreach ($result as $r) {
 		db_query('UPDATE history SET balance_before = '.$b['balance'].', balance_after = '.($b['balance'] - $r['amount']).' WHERE request_id = '.$r['id']);
 	}
 }
+
+echo 'done'.PHP_EOL;
