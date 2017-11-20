@@ -6,10 +6,9 @@ ini_set('display_errors',1);
 
 // GET SYSTEM BANK ACCOUNTS
 $sys = array();
-$acc = array();
 
 foreach ($CFG->currencies as $c) {
-	if (!$c['account_number'])
+	if (!$c['account_number'] || strlen($c['account_number']) < 6)
 		continue;
 		
 	$sys[$c['account_number']] = $c;
@@ -19,15 +18,15 @@ foreach ($CFG->currencies as $c) {
 $cc = new CryptoCap($CFG->crypto_capital_pk,$CFG->crypto_capital_secret);
 
 // FETCH INCOMING DEPOSITS
-foreach ($acc as $ac) {
-	$result = $cc->statement(array('limit'=>'100', 'accountNumber'=>$ac));
-	
+foreach ($sys as $ac) {
+	$result = $cc->statement(array('limit'=>'100', 'accountNumber'=>$ac['account_number']));
+
 	if ($result) foreach ($result as $r) {
-		if ($r['type'] != 'deposit')
+		if ($r['receiveAccount'] != $ac['account_number'])
 			continue;
 		
 		// check internal conversion
-		if ($sys[$r['sendAccount']]) {
+		if (!empty($sys[$r['sendAccount']])) {
 			db_query('UPDATE requests  
 					SET requests.crypto_id = "" 
 					WHERE requests.request_status = '.$CFG->request_pending_id.' 
@@ -53,7 +52,7 @@ foreach ($acc as $ac) {
 				site_users.email AS email, 
 				site_users.last_lang AS last_lang, 
 				site_users.notify_deposit_bank AS notify_deposit_bank, 
-				site_users_balances.balance AS cur_balance, 
+				IFNULL(site_users_balances.balance,0) AS cur_balance, 
 				site_users_balances.id AS balance_id 
 				FROM bank_accounts 
 				LEFT JOIN currencies ON (currencies.id = bank_accounts.currency) 
@@ -63,10 +62,11 @@ foreach ($acc as $ac) {
 				LEFT JOIN site_users_balances ON (site_users.id = site_users_balances.site_user AND site_users_balances.currency = currencies1.id) 
 				WHERE bank_accounts.account_number = '.$r['sendAccount'].' LIMIT 0,1';
 				
-		$i = db_query_array($sql);
-		if (!$i)
+		$result1 = db_query_array($sql);
+		if (!$result1)
 			continue;
 		
+		$i = $result1[0];
 		if ($i['currency'] != $r['receiveCurrency'])
 			$i['currency_id'] = $i['currency_id1'];
 								
@@ -114,7 +114,7 @@ if ($result) foreach ($result as $r) {
 		'amount' => $r['amount'],
 		'narrative' => $CFG->exchange_name.' #'.$r['id']
 	));
-	
+
 	// SUBTRACT SUCCESSFUL WITHDRAWAL FROM BALANCE
 	if ($res) {
 		$b = db_query_array('
@@ -128,9 +128,9 @@ if ($result) foreach ($result as $r) {
 			AND r.request_status != '.$CFG->request_completed_id.' 
 			LIMIT 0,1');
 			
-		db_query('UPDATE site_users_balances SET balance = balance - '.$r['amount'].' WHERE id = '.$b['balance_id']);
+		db_query('UPDATE site_users_balances SET balance = balance - '.$r['amount'].' WHERE id = '.$b[0]['balance_id']);
 		db_query('UPDATE requests SET request_status = '.$CFG->request_completed_id.', done = "Y" WHERE id = '.$r['id']);
-		db_query('UPDATE history SET balance_before = '.$b['balance'].', balance_after = '.($b['balance'] - $r['amount']).' WHERE request_id = '.$r['id']);
+		db_query('UPDATE history SET balance_before = '.$b[0]['balance'].', balance_after = '.($b[0]['balance'] - $r['amount']).' WHERE request_id = '.$r['id']);
 	}
 }
 

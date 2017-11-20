@@ -17,7 +17,7 @@ Class CryptoCap {
 		return $this->signature;
 	}
 	
-	private function request($url,$params=false) {
+	private function request($url,$params=false,$use_get=false) {
 		$headers = array(
 			'Content-Type: application/json',
 			'key: '.$this->api_key,
@@ -26,21 +26,38 @@ Class CryptoCap {
 			'nonce: '.$this->nonce
 		);
 		
-		$json = is_array($params) ? json_encode($params) : false;
+		$json = false;
+		$query = false;
 		
-		$ch = curl_init('https://api.cryptocapital.co/v4/'.$url);
+		if (!$use_get)
+			$json = is_array($params) ? json_encode($params) : false;
+		else
+			$query = '?'.http_build_query($params);
+		
+		$ch = curl_init('https://api.cryptocapital.co/v4/'.$url.($query));
 		curl_setopt($ch,CURLOPT_HTTPHEADER,$headers);
-		curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
-		curl_setopt($ch,CURLOPT_POSTFIELDS,$json);
-		$data = curl_exec($ch);
-		curl_close($ch);
+		curl_setopt($ch,CURLOPT_RETURNTRANSFER,true); 
+
+		if (!$use_get)
+			curl_setopt($ch,CURLOPT_POSTFIELDS,$json);
 		
-		if ($data === false) {
+		$r = curl_exec($ch);
+		$data = json_decode($r,true);
+		
+		if (!is_array($data)) {
 			print_r(curl_error($ch));
+			curl_close($ch);
+			return false;
+		}
+		else if (is_array($data) && !empty($data['statusCode'])) {
+			print_r('Error @/'.$url.': '.$data['message']);
+			curl_close($ch);
 			return false;
 		}
 		
-		return json_decode($data,true);
+		curl_close($ch);
+		
+		return $data;
 	}
 	
 	public function ping() {
@@ -60,19 +77,19 @@ Class CryptoCap {
 			return false;
 		}
 		
-		return true;
+		return $res;
 	}
 	
 	public function statement($params) {
 		$this->message = 'STATEMENT'.$this->nonce().$params['accountNumber'];
 		$this->signature();
 		
-		$res = $this->request('statement/'.$params['accountNumber'],$params);
-		if (is_array($res) && $res['statusCode'] != 0) {
+		$res = $this->request('statement/'.$params['accountNumber'],$params,true);
+		if (is_array($res) && !empty($res['statusCode']) && $res['statusCode'] != 0) {
 			print_r($res['data']);
 			return false;
 		}
 		
-		return true;
+		return $res;
 	}
 }
