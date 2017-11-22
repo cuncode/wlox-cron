@@ -49,6 +49,7 @@ foreach ($CFG->currencies as $currency_id => $currency) {
 
 
 // determine users' monthly volume
+/*
 $sql = 'SELECT id, global_btc, from_usd, to_usd FROM fee_schedule ORDER BY global_btc ASC, from_usd ASC';
 $result = db_query_array($sql);
 if ($result && count($result) > 1) {
@@ -77,7 +78,7 @@ if ($result && count($result) > 1) {
 		}
 	}
 }
-
+*/
 // expire settings change request
 $sql = 'DELETE FROM change_settings WHERE `date` <= ("'.date('Y-m-d H:i:s').'" - INTERVAL 1 DAY)';
 $result = db_query($sql);
