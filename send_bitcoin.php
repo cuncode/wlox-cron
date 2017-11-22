@@ -11,7 +11,6 @@ $sql = "SELECT
 		r.amount, 
 		r.send_address, 
 		r.fee, 
-		r.operator_fee, 
 		r.net_amount, 
 		r.id, 
 		sub.balance, 
@@ -69,7 +68,7 @@ foreach ($wallets as $wallet) {
 				continue;
 			
 			$fee = $row['fee'];
-			$operator_fee = $row['operator_fee'];
+			$operator_fee = 0;
 			
 			// check if user sending to himself
 			$addr_info = BitcoinAddresses::getAddress($row['send_address'],$wallet['c_currency']);
