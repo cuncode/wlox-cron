@@ -229,7 +229,7 @@ class Ethereum {
 		curl_setopt($ch,CURLOPT_POST,1);
 		
 		$headers = array();
-		$headers[] = "Content-Type: application/x-www-form-urlencoded";
+		$headers[] = "Content-Type: application/json";
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 		
 		if (!empty($params['simulate'])) {
