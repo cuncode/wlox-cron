@@ -38,35 +38,62 @@ class BitcoinAddresses{
 			return $result[0]['total'];
 	}
 	
-	public static function getNew($hot_wallet=false) {
+	public static function getNew($c_currency=false,$return_address=false,$hot_wallet=false) {
 		global $CFG;
 		
-		if (!$CFG->session_active)
+		$c_currency = preg_replace("/[^0-9]/", "",$c_currency);
+		if (!array_key_exists($c_currency,$CFG->currencies))
 			return false;
 		
-		if (!self::$bitcoin) {
-			require_once('easybitcoin.php');
-			$bitcoin = new Bitcoin($CFG->bitcoin_username,$CFG->bitcoin_passphrase,$CFG->bitcoin_host,$CFG->bitcoin_port,$CFG->bitcoin_protocol);
-		}
-		else
-			$bitcoin = self::$bitcoin;
+		$c_currency_info = $CFG->currencies[$c_currency];
+		$wallet = Wallets::getWallet($c_currency);
 		
-		$new_address = $bitcoin->getnewaddress($CFG->bitcoin_accountname);
+		if (!$c_currency_info['coin_type'] || $c_currency_info['coin_type'] == 'BTC') {
+			require_once('../lib/easybitcoin.php');
+			$bitcoin = new Bitcoin($wallet['bitcoin_username'],$wallet['bitcoin_passphrase'],$wallet['bitcoin_host'],$wallet['bitcoin_port'],$wallet['bitcoin_protocol']);
+			$new_address = $bitcoin->getnewaddress($wallet['bitcoin_accountname']);
+		}
+		else if ($c_currency_info['coin_type'] == 'ETH') {
+			$ethereum = new Ethereum($wallet['bitcoin_username'],$wallet['bitcoin_passphrase'],$wallet['bitcoin_host'],$wallet['bitcoin_port']);
+			$new_address = $ethereum->newAccount();
+		}
 		
 		if (!$hot_wallet)
-			$new_id = db_insert('bitcoin_addresses',array('address'=>$new_address,'site_user'=>User::$info['id'],'date'=>date('Y-m-d H:i:s')));
+			$new_id = db_insert('bitcoin_addresses',array('c_currency'=>$c_currency,'address'=>$new_address,'site_user'=>User::$info['id'],'date'=>date('Y-m-d H:i:s')));
 		else
-			$new_id = db_insert('bitcoin_addresses',array('address'=>$new_address,'date'=>date('Y-m-d H:i:s'),'hot_wallet'=>'Y','system_address'=>'Y'));
+			$new_id = db_insert('bitcoin_addresses',array('c_currency'=>$c_currency,'address'=>$new_address,'date'=>date('Y-m-d H:i:s'),'hot_wallet'=>'Y','system_address'=>'Y'));
 		
-		return $new_id;
+		return ($return_address) ? $new_address : $new_id;
 	}
 	
 	public static function getAddress($address,$c_currency=false) {
 		global $CFG;
 		
-		$sql = "SELECT bitcoin_addresses.id, bitcoin_addresses.site_user,bitcoin_addresses.date,bitcoin_addresses.system_address, bitcoin_addresses.hot_wallet, site_users.trusted, site_users.first_name, site_users.last_name, site_users.notify_deposit_btc FROM bitcoin_addresses LEFT JOIN site_users ON (site_users.id = bitcoin_addresses.site_user) WHERE ".($c_currency ? 'bitcoin_addresses.c_currency = '.$c_currency.' AND ' : '')." bitcoin_addresses.address = '$address' LIMIT 0,1";
+		$sql = "SELECT bitcoin_addresses.id, bitcoin_addresses.site_user,bitcoin_addresses.date,bitcoin_addresses.system_address, bitcoin_addresses.hot_wallet, site_users.trusted, site_users.first_name, site_users.last_name, site_users.notify_deposit_btc,site_users.email FROM bitcoin_addresses LEFT JOIN site_users ON (site_users.id = bitcoin_addresses.site_user) WHERE ".($c_currency ? 'bitcoin_addresses.c_currency = '.$c_currency.' AND ' : '')." bitcoin_addresses.address = '$address' LIMIT 0,1";
 		$result = db_query_array($sql);
-		return $result[0];
+		
+		if ($result) {
+			$result[0]['first_name'] = Encryption::decrypt($result[0]['first_name']);
+			$result[0]['last_name'] = Encryption::decrypt($result[0]['last_name']);
+			$result[0]['email'] = Encryption::decrypt($result[0]['email']);
+			
+			return $result[0];
+		}
+		
+		return false;
+	}
+	
+	public static function updateAddressBalance($address_id,$amount,$sum=false) {
+		global $CFG;
+
+		if (!$address_id || !$amount)
+			return false;
+		
+		$sign = ($amount >= 0) ? 'balance + ' : 'balance - ';
+		$sign = (!$sum) ? '' : $sign;
+		
+		$sql = 'UPDATE bitcoin_addresses SET balance = '.$sign.$amount.' WHERE id = '.$address_id;
+		return db_query($sql);
 	}
 	
 	public static function getBitcoindBalance() {
@@ -131,21 +158,24 @@ class BitcoinAddresses{
 		}
 	}
 	
-	public static function getHotWallet() {
+	public static function getHotWallets($c_currency) {
 		global $CFG;
 		
-		if (!$CFG->session_active)
+		if (!$c_currency)
 			return false;
 		
-		$sql = "SELECT * FROM bitcoin_addresses WHERE system_address = 'Y' AND hot_wallet = 'Y' ORDER BY `date` ASC LIMIT 0,1";
-		$result = db_query_array($sql);
-		if ($result[0])
-			return $result[0];
-		else {
-			$new_id = self::getNew(1);
-			return DB::getRecord('bitcoin_addresses',$new_id,0,1);
-		}
-			
+		$sql = "SELECT * FROM bitcoin_addresses WHERE (hot_wallet = 'Y' || system_address = 'Y') AND c_currency = $c_currency ORDER BY balance DESC LIMIT 0,1";
+		return db_query_array($sql);	
+	}
+	
+	public static function getSystemAddresses($c_currency) {
+		global $CFG;
+		
+		if (!$c_currency)
+			return false;
+		
+		$sql = "SELECT * FROM bitcoin_addresses WHERE system_address = 'Y' AND c_currency = $c_currency ORDER BY balance DESC LIMIT 0,1";
+		return db_query_array($sql);	
 	}
 	
 	public static function getWarmWallet() {
@@ -154,7 +184,7 @@ class BitcoinAddresses{
 		if (!$CFG->session_active)
 			return false;
 		
-		$sql = "SELECT * FROM bitcoin_addresses WHERE system_address = 'Y' AND warm_wallet = 'Y' LIMIT 0,1";
+		$sql = "SELECT * FROM bitcoin_addresses WHERE AND warm_wallet = 'Y' LIMIT 0,1";
 		$result = db_query_array($sql);
 		return $result[0];
 	}
