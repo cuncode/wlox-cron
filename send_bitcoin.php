@@ -25,11 +25,7 @@ $sql = "SELECT
 		ORDER BY r.id ASC";
 $result = db_query_array($sql);
 
-// GET HOT WALLET SEND
-$sql = 'SELECT * FROM wallets_requests WHERE processed != "Y"';
-$result1 = db_query_array($sql);
-
-if (!$result && !$result1) {
+if (!$result) {
 	echo 'done'.PHP_EOL;
 	exit;
 }
@@ -225,64 +221,6 @@ foreach ($wallets as $wallet) {
 	}
 	
 	if (empty($pending)) db_update('wallets',$wallet['id'],array('deficit_btc'=>'0'));
-	
-	// SEND OUT ANY MANUAL HOT WALLET WITHDRAWALS
-	if ($result1) {
-		if ($is_bitcoin) {
-			$total = 0;
-			foreach ($result1 as $r) {
-				if ($r['c_currency'] == $c_currency_info['id'])
-					continue;
-				
-				if ($c_currency_info['currency'] == 'DASH')
-					$fee = $wallet['bitcoin_sending_fee'];
-				else
-					$fee = round(($wallet['bitcoin_sending_fee'] / 226) * 1000,8);
-				
-				$bitcoin->settxfee((float)$fee);
-				$bitcoin->walletpassphrase($wallet['bitcoin_passphrase'],3);
-				$response = $bitcoin->sendtoaddress($r['address'],(float)($r['amount'] - $fee));
-				
-				if (!empty($bitcoin->error))
-					echo $bitcoin->error.PHP_EOL;
-				else
-					$total += $r['amount'];
-			}
-			
-			if ($total > 0) {
-				Wallets::sumFields($wallet['id'],array('hot_wallet_btc'=>($total * -1)));
-				echo $total.' '.$c_currency_info['currency'].' sent out from hot wallet.'.PHP_EOL;
-			}
-		}
-		else if ($is_ether) {
-			$hot_wallets = BitcoinAddresses::getHotWallets($wallet['c_currency']);
-			$to_send = array();
-			
-			foreach ($result1 as $r) {
-				if ($c['c_currency'] == $c_currency_info['id'])
-					continue;
-				
-				foreach ($hot_wallets as $hot_wallet) {
-					if ($r['amount'] > 0 && $hot_wallet['balance'] > 0) {
-						$send_amount = min($r['amount'],$hot_wallet['balance']);
-						$r['amount'] -= $send_amount;
-						
-						$to_send[] = array('to'=>$r['address'],'from'=>$hot_wallet['address'],'amount'=>$send_amount,'fee'=>$wallet['bitcoin_sending_fee']);
-					}
-				}
-			}
-			
-			$sent = $ethereum->sendTransactions($to_send,$wallet['gas_limit']);
-			$response = ($sent['sent'] > 0);
-			
-			if ($sent['errors'])
-				echo print_r($sent['errors'],1).PHP_EOL;
-			else if ($sent['sent'] > 0) {
-				Wallets::sumFields($wallet['id'],array('hot_wallet_btc'=>($sent['sent'] * -1)));
-				echo $sent['sent'].' '.$c_currency_info['currency'].' sent out from hot wallet.'.PHP_EOL;
-			}
-		}
-	}
 	
 	// FALLBACK FOR STUCK BITCOIN TRANSACTIONS
 	if ($c_currency_info['currency'] == 'BTC') {
