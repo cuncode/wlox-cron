@@ -73,10 +73,6 @@ class BitcoinAddresses{
 		$result = db_query_array($sql);
 		
 		if ($result) {
-			$result[0]['first_name'] = Encryption::decrypt($result[0]['first_name']);
-			$result[0]['last_name'] = Encryption::decrypt($result[0]['last_name']);
-			$result[0]['email'] = Encryption::decrypt($result[0]['email']);
-			
 			return $result[0];
 		}
 		
