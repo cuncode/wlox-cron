@@ -1,5 +1,5 @@
 wlox-cron
 =========
 
-Please see main repository documentation at [wlox/wlox](http://www.github.com/wlox/wlox) for instructions.
+Please see main repository documentation at [wlox-project/wlox](http://www.github.com/wlox-project/wlox) for instructions.
 
